@@ -53,7 +53,7 @@ async function loadStats() {
 }
 
 /* ---------- navigation ---------- */
-const views = ['add', 'current', 'search', 'slots', 'book'];
+const views = ['add', 'current', 'search', 'slots', 'book', 'accounts'];
 const state = { current: 'car', slots: 'car' };
 
 function showView(name) {
@@ -62,6 +62,7 @@ function showView(name) {
   if (name === 'current') loadCurrent();
   if (name === 'slots') loadSlots();
   if (name === 'book') { loadBookSlots(); loadBookings(); }
+  if (name === 'accounts') loadAccounts();
   if (name === 'search') $('searchPlate').focus();
   if (name === 'add') $('addPlate').focus();
 }
@@ -248,11 +249,44 @@ $('bookingsTable').addEventListener('click', async (e) => {
   } catch (err) { say($('bookMsg'), err.message, false); }
 });
 
+/* ---------- ACCOUNTS (admin) ---------- */
+async function loadAccounts() {
+  const box = $('accountsList');
+  try {
+    const rows = await api('/api/accounts');
+    box.innerHTML = rows.map((a) => `
+      <form class="form account" data-id="${a.id}">
+        <h3>${a.role === 'admin' ? 'Admin login' : 'User login'}</h3>
+        <label for="un-${a.id}">Username</label>
+        <input id="un-${a.id}" name="username" value="${esc(a.username)}" autocomplete="off" required>
+        <label for="pw-${a.id}">New password</label>
+        <input id="pw-${a.id}" name="password" type="password" placeholder="Leave blank to keep current" autocomplete="new-password">
+        <button class="btn primary" type="submit">Save changes</button>
+        <p class="msg" role="status"></p>
+      </form>`).join('');
+  } catch (err) { box.textContent = err.message; }
+}
+
+$('accountsList').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const msg = f.querySelector('.msg');
+  try {
+    const r = await api('/api/accounts/' + f.dataset.id, {
+      method: 'PUT',
+      body: JSON.stringify({ username: f.username.value, password: f.password.value }),
+    });
+    if (r.relogin) { alert('Your own login details changed. Please log in again.'); logout(); return; }
+    f.password.value = '';
+    say(msg, 'Saved. The new details work from the next login.', true);
+  } catch (err) { say(msg, err.message, false); }
+});
+
 /* ---------- start ---------- */
 if (user) {
   $('whoLabel').textContent = `${user.username} (${isAdmin ? 'Admin' : 'User'})`;
   $('logoutBtn').addEventListener('click', logout);
-  if (!isAdmin) $('navAdd').hidden = true; // users cannot add data
+  if (!isAdmin) { $('navAdd').hidden = true; $('navAccounts').hidden = true; } // users cannot add data
   loadStats();
   setInterval(loadStats, 30000);
   showView(isAdmin ? 'add' : 'current');

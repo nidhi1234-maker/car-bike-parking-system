@@ -172,3 +172,7 @@ td.plate { font-weight: 600; letter-spacing: .06em; }
   .wrap { padding: .8rem; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.account { padding-bottom: 1.25rem; border-bottom: 1px solid var(--rule); margin-bottom: 1.25rem; }
+.account h3 { margin-top: 0; }
+.tabs button[hidden] { display: none; }

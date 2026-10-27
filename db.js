@@ -78,11 +78,11 @@ async function init() {
   const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 10);
   const userHash = await bcrypt.hash(process.env.USER_PASSWORD || 'User@123', 10);
   await pool.query(
-    `INSERT INTO users (username, password_hash, role) VALUES ('admin', $1, 'admin')
-     ON CONFLICT (username) DO NOTHING`, [adminHash]);
+    `INSERT INTO users (username, password_hash, role)
+     SELECT 'admin', $1, 'admin' WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='admin')`, [adminHash]);
   await pool.query(
-    `INSERT INTO users (username, password_hash, role) VALUES ('user', $1, 'user')
-     ON CONFLICT (username) DO NOTHING`, [userHash]);
+    `INSERT INTO users (username, password_hash, role)
+     SELECT 'user', $1, 'user' WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='user')`, [userHash]);
 }
 
 module.exports = { pool, init };

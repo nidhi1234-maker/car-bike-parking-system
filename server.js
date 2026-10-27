@@ -9,6 +9,17 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Set up tables once, on the first request (works locally and on Vercel)
+let ready = null;
+const ensureInit = () => ready || (ready = init().catch((e) => { ready = null; throw e; }));
+app.use('/api', async (req, res, next) => {
+  try { await ensureInit(); next(); }
+  catch (e) {
+    console.error('Database setup failed:', e.message);
+    res.status(500).json({ error: 'Cannot reach the database. Check DATABASE_URL.' });
+  }
+});
+
 const SECRET = process.env.JWT_SECRET || 'change-this-secret';
 const TABLE = { car: 'car_records', bike: 'bike_records' }; // whitelist, never built from raw input
 
@@ -250,11 +261,41 @@ app.post('/api/bookings/:id/cancel', auth, adminOnly, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ---------- accounts (admin changes usernames / passwords) ---------- */
+app.get('/api/accounts', auth, adminOnly, wrap(async (req, res) => {
+  const { rows } = await pool.query('SELECT id, username, role FROM users ORDER BY role, id');
+  res.json(rows);
+}));
+
+app.put('/api/accounts/:id', auth, adminOnly, wrap(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const username = String(req.body.username || '').trim().toLowerCase() || null;
+  const password = req.body.password ? String(req.body.password) : null;
+  if (!username && !password) return res.status(400).json({ error: 'Enter a new username or a new password.' });
+  if (username && !/^[a-z0-9_.-]{3,30}$/.test(username)) {
+    return res.status(400).json({ error: 'Username must be 3 to 30 characters: letters, numbers, dot, dash or underscore.' });
+  }
+  if (password && password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+
+  const found = await pool.query('SELECT id FROM users WHERE id=$1', [id]);
+  if (!found.rowCount) return res.status(404).json({ error: 'Account not found.' });
+
+  try {
+    if (username) await pool.query('UPDATE users SET username=$1 WHERE id=$2', [username, id]);
+    if (password) await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(password, 10), id]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'That username is already taken.' });
+    throw e;
+  }
+  res.json({ ok: true, relogin: id === req.user.id });
+}));
+
 /* ---------- start ---------- */
-const PORT = process.env.PORT || 3000;
-init()
-  .then(() => app.listen(PORT, () => console.log(`Parking system running at http://localhost:${PORT}`)))
-  .catch((err) => {
-    console.error('Could not set up the database:', err.message);
-    process.exit(1);
-  });
+module.exports = app; // Vercel uses this export
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  ensureInit()
+    .then(() => app.listen(PORT, () => console.log(`Parking system running at http://localhost:${PORT}`)))
+    .catch((err) => { console.error('Could not set up the database:', err.message); process.exit(1); });
+}

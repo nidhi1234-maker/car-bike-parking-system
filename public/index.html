@@ -55,6 +55,7 @@
       <button type="button" data-view="search">Search</button>
       <button type="button" data-view="slots">Available slots</button>
       <button type="button" data-view="book">Book slot</button>
+      <button type="button" data-view="accounts" id="navAccounts">Accounts</button>
     </nav>
 
     <!-- ADD (admin only) -->
@@ -139,6 +140,13 @@
 
       <h3>Active bookings</h3>
       <div class="table-wrap"><table id="bookingsTable"></table></div>
+    </section>
+
+    <!-- ACCOUNTS (admin only) -->
+    <section id="view-accounts" class="panel" hidden>
+      <h2>Login accounts</h2>
+      <p class="muted">Change the username or password for the admin and user logins. Leave the password blank to keep it.</p>
+      <div id="accountsList"></div>
     </section>
   </main>
 
